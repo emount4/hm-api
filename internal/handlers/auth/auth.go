@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 	"go-api/internal/auth"
 	"go-api/internal/models"
 	"log/slog"
@@ -33,12 +34,14 @@ func LoginHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 		}
 
 		var user models.User
-		if err := db.
-			Where("email = ?", input.Email).
-			Preload("Role").
-			First(&user); err != nil {
+		result := db.Where("email = ?", input.Email).Preload("Role").First(&user)
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			logger.Error("Пользователь не найден", "email", input.Email)
 			http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+			return
+		} else if result.Error != nil {
+			logger.Error("Ошибка при поиске пользователя", "error", result.Error)
+			http.Error(w, "Database error", http.StatusInternalServerError)
 			return
 		}
 

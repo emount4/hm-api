@@ -26,6 +26,7 @@ func main() {
 	defer store.Close()
 
 	http.HandleFunc("/api/login", handlerAuth.LoginHandler(store.DB(), logger)) //временно, потом заменить
+	http.HandleFunc("/api/register", handlerAuth.RegisterHandler(store.DB(), logger))
 	http.ListenAndServe(":8080", nil)
 
 	// TODO: init router chi

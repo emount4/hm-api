@@ -33,6 +33,14 @@ func RegisterHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 
+		if len(input.Email) == 0 || len(input.Name) == 0 {
+			logger.Error("Пустые поля ввода",
+				"email", input.Email,
+				"name", input.Name,
+			)
+			http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		}
+
 		if userExists(db, input.Email) {
 			logger.Info("Пользователь с таким email уже существует", "email", input.Email)
 			http.Error(w, "User already exist", http.StatusConflict)
