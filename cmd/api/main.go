@@ -8,6 +8,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 func main() {
@@ -25,11 +28,26 @@ func main() {
 	}
 	defer store.Close()
 
-	http.HandleFunc("/api/login", handlerAuth.LoginHandler(store.DB(), logger)) //временно, потом заменить
-	http.HandleFunc("/api/register", handlerAuth.RegisterHandler(store.DB(), logger))
-	http.ListenAndServe(":8080", nil)
+	// http.HandleFunc("/api/login", handlerAuth.LoginHandler(store.DB(), logger)) //временно, потом заменить
+	// http.HandleFunc("/api/register", handlerAuth.RegisterHandler(store.DB(), logger))
+	// http.ListenAndServe(":8080", nil)
 
-	// TODO: init router chi
+	router := chi.NewRouter() // init router chi
+
+	router.Use(middleware.Logger)
+	router.Use(middleware.Recoverer)
+	router.Use(middleware.RequestID)
+
+	router.Post("/api/login", handlerAuth.LoginHandler(store.DB(), logger))
+	router.Post("/api/register", handlerAuth.RegisterHandler(store.DB(), logger))
+
+	router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	logger.Info("server started", slog.String("port", ":8080"))
+	http.ListenAndServe(":8080", router)
 
 	// TODO: run server
 }
