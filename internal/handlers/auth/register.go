@@ -24,7 +24,7 @@ func RegisterHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 			Email    string `json:"email"`
 			Name     string `json:"name"`
 			Password string `json:"password"`
-			Role     uint   `json:"role"`
+			RoleID   uint   `json:"role"`
 		}
 
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -60,7 +60,7 @@ func RegisterHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 			Name:         input.Name,
 			Email:        input.Email,
 			PasswordHash: passwordHash,
-			RoleID:       input.Role,
+			RoleID:       input.RoleID,
 		}
 
 		if err := db.Create(&user).Error; err != nil {
@@ -80,6 +80,7 @@ func RegisterHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"id":      user.ID,
 			"email":   user.Email,
+			"role":    user.Role,
 			"message": "Пользователь зарегистрирован",
 			"token":   token,
 		})

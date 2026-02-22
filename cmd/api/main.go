@@ -4,6 +4,7 @@ import (
 	"go-api/internal/auth"
 	"go-api/internal/config"
 	handlerAuth "go-api/internal/handlers/auth"
+	handlerSys "go-api/internal/handlers/sys"
 	"go-api/internal/storage"
 	"log/slog"
 	"net/http"
@@ -28,28 +29,17 @@ func main() {
 	}
 	defer store.Close()
 
-	// http.HandleFunc("/api/login", handlerAuth.LoginHandler(store.DB(), logger)) //временно, потом заменить
-	// http.HandleFunc("/api/register", handlerAuth.RegisterHandler(store.DB(), logger))
-	// http.ListenAndServe(":8080", nil)
+	r := chi.NewRouter() // init router chi
 
-	router := chi.NewRouter() // init router chi
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.RequestID)
 
-	router.Use(middleware.Logger)
-	router.Use(middleware.Recoverer)
-	router.Use(middleware.RequestID)
-
-	router.Post("/api/login", handlerAuth.LoginHandler(store.DB(), logger))
-	router.Post("/api/register", handlerAuth.RegisterHandler(store.DB(), logger))
-
-	router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
+	handlerAuth.SetupRoutes(store.DB(), logger, r)
+	handlerSys.SetupRoutes(store.DB(), logger, r)
 
 	logger.Info("server started", slog.String("port", ":8080"))
-	http.ListenAndServe(":8080", router)
-
-	// TODO: run server
+	http.ListenAndServe(":8080", r)
 }
 
 // константы логгера
