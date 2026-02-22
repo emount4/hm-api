@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"go-api/internal/auth"
-	"go-api/internal/models"
+
+	// "go-api/internal/models"
+	"go-api/internal/storage"
 	"log/slog"
 	"net/http"
 
@@ -21,10 +23,11 @@ func LoginHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		var input struct {
+		type LoginInput struct {
 			Email    string `json:"email"`
 			Password string `json:"password"`
 		}
+		var input LoginInput
 
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 			logger.Error("Ошибка парсинга JSON",
@@ -33,15 +36,13 @@ func LoginHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		var user models.User
-		result := db.Where("email = ?", input.Email).Preload("Role").First(&user)
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			logger.Error("Пользователь не найден", "email", input.Email)
-			http.Error(w, "Invalid credentials", http.StatusUnauthorized)
-			return
-		} else if result.Error != nil {
-			logger.Error("Ошибка при поиске пользователя", "error", result.Error)
-			http.Error(w, "Database error", http.StatusInternalServerError)
+		user, err := storage.UserByEmail(db, input.Email)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+			} else {
+				http.Error(w, "Database error", http.StatusInternalServerError)
+			}
 			return
 		}
 
