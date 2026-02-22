@@ -48,9 +48,17 @@ func RegisterHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 
+		tx := db.Begin()
+		defer func() {
+			if r := recover(); r != nil {
+				tx.Rollback()
+			}
+		}()
+
 		passwordHash, err := auth.HashPassword(input.Password)
 
 		if err != nil {
+			tx.Rollback()
 			logger.Error("Ошибка генерации хэша", "err:", err)
 			http.Error(w, "Ошибка сервера при создании пароля", http.StatusInternalServerError)
 			return
@@ -64,8 +72,28 @@ func RegisterHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 		}
 
 		if err := db.Create(&user).Error; err != nil {
+			tx.Rollback()
 			logger.Error("Ошибка вставки пользователя", "err:", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if input.RoleID == 2 {
+			workerProfile := models.WorkerProfile{
+				UserID: user.ID,
+				IsBusy: false,
+			}
+			if err := tx.Create(&workerProfile).Error; err != nil {
+				tx.Rollback()
+				http.Error(w, "Failed to create worker profile", http.StatusInternalServerError)
+				return
+			}
+		}
+
+		if err := tx.Commit().Error; err != nil {
+			tx.Rollback()
+			logger.Error("Ошибка транзакции", "err", err)
+			http.Error(w, "Transaction failed", http.StatusInternalServerError)
 			return
 		}
 
