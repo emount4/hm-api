@@ -114,9 +114,6 @@ func editProfile(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 		if input.Name != nil {
 			userUpdates["name"] = *input.Name
 		}
-		if input.Phone != nil {
-			userUpdates["phone"] = *input.Phone
-		}
 
 		if len(userUpdates) > 0 {
 			result := tx.Model(&models.User{}).Where("id = ?", userID).Updates(userUpdates)
@@ -150,7 +147,9 @@ func editProfile(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 			if input.IsBusy != nil {
 				workerUpdates["is_busy"] = *input.IsBusy
 			}
-
+			if input.Phone != nil {
+				workerUpdates["phone"] = *input.Phone
+			}
 			if len(workerUpdates) > 0 {
 				result := tx.Model(&models.WorkerProfile{}).Where("user_id = ?", userID).Updates(workerUpdates)
 				if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
