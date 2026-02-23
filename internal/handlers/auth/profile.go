@@ -55,11 +55,11 @@ func getProfile(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 				"email": user.Email,
 				"role":  user.Role.RoleName,
 				"name":  user.Name,
+				"phone": user.Phone,
 				"worker": map[string]interface{}{
 					"specialization": worker.Categories,
 					"experience":     worker.ExpYears,
 					// "rating":         worker.Rating,
-					"phone":       worker.Phone,
 					"description": worker.Description,
 					"is_busy":     worker.IsBusy,
 					"reviews":     worker.ReviewsReceived,
@@ -74,10 +74,12 @@ func getProfile(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 			"email": user.Email,
 			"role":  user.Role.RoleName,
 			"name":  user.Name,
+			"phone": user.Phone,
 		})
 	}
 }
 
+// самый важный момент - решить проблему, если сначала регаешься как юзер, а потом как рабочий
 func editProfile(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID, ok := r.Context().Value("user_id").(uint)
@@ -95,6 +97,7 @@ func editProfile(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 			ExpYears    *int    `json:"exp_years,omitempty"`
 			Description *string `json:"description,omitempty"`
 			IsBusy      *bool   `json:"is_busy,omitempty"`
+			Categories  []uint  `json:"categories,omitempty"`
 		}
 
 		var input ProfileInput
@@ -113,6 +116,9 @@ func editProfile(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 		userUpdates := map[string]interface{}{}
 		if input.Name != nil {
 			userUpdates["name"] = *input.Name
+		}
+		if input.Phone != nil {
+			userUpdates["phone"] = *input.Phone
 		}
 
 		if len(userUpdates) > 0 {
@@ -147,9 +153,13 @@ func editProfile(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 			if input.IsBusy != nil {
 				workerUpdates["is_busy"] = *input.IsBusy
 			}
-			if input.Phone != nil {
-				workerUpdates["phone"] = *input.Phone
+
+			if len(userUpdates) == 0 && len(workerUpdates) == 0 {
+				tx.Rollback()
+				http.Error(w, "Database error, no fields", http.StatusInternalServerError)
+				return
 			}
+
 			if len(workerUpdates) > 0 {
 				result := tx.Model(&models.WorkerProfile{}).Where("user_id = ?", userID).Updates(workerUpdates)
 				if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -158,6 +168,12 @@ func editProfile(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 					return
 				}
 			}
+		}
+
+		if len(userUpdates) == 0 && user.Role.RoleName != "worker" {
+			tx.Rollback()
+			http.Error(w, "Database error, no fields", http.StatusInternalServerError)
+			return
 		}
 
 		if err := tx.Commit().Error; err != nil {

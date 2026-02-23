@@ -43,6 +43,7 @@ type User struct {
 	PasswordHash string    `gorm:"size:255;not null" json:"-"`
 	RoleID       uint      `gorm:"not null;index;default:1" json:"role_id"`
 	CreatedAt    time.Time `gorm:"not null;index" json:"created_at"`
+	Phone        string    `gorm:"size:255" json:"phone"`
 
 	// Связи
 	Role          Role           `gorm:"foreignKey:RoleID" json:"role,omitempty"`
@@ -56,7 +57,6 @@ type WorkerProfile struct {
 	UserID      uint    `gorm:"not null;uniqueIndex" json:"-"` // ✅ ПРАВИЛЬНО! 1:1 связь
 	ExpYears    *int    `json:"exp_years"`                     // NULLABLE
 	Description *string `gorm:"size:255" json:"description"`
-	Phone       *string `gorm:"size:255" json:"phone"`
 	IsBusy      bool    `gorm:"default:false;not null" json:"is_busy"`
 
 	// Связи (UserID вместо ID!)
@@ -73,6 +73,7 @@ type Ad struct {
 	PriceUnitID uint      `gorm:"not null;index" json:"price_unit_id"`
 	UserID      uint      `gorm:"not null;index" json:"user_id"`
 	CreatedAt   time.Time `gorm:"not null;index" json:"created_at"`
+	// IsApproved  bool      `gorm:"default:false;index" json:"is_approved"`
 
 	// Связи
 	Category  Category  `gorm:"foreignKey:CategoryID" json:"category,omitempty"`

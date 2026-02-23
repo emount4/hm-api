@@ -108,7 +108,7 @@ func RegisterHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"id":      user.ID,
 			"email":   user.Email,
-			"role":    user.Role,
+			"role":    user.RoleID,
 			"message": "Пользователь зарегистрирован",
 			"token":   token,
 		})

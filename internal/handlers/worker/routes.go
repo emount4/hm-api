@@ -10,5 +10,6 @@ import (
 func SetupRoutes(db *gorm.DB, logger *slog.Logger, r chi.Router) {
 	r.Route("/handyman", func(r chi.Router) {
 		r.Get("/", AllWorkersHandler(db, logger))
+		r.Get("/{id}", WorkerHandler(db, logger))
 	})
 }
