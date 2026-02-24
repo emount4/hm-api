@@ -41,41 +41,32 @@ func getProfile(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		if user.Role.RoleName == "worker" {
-			// Загружаем Worker данные
-			var worker models.WorkerProfile
-			err := db.Where("user_id = ?", userID).First(&worker).Error
-			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-				http.Error(w, "Database error", http.StatusInternalServerError)
-				return
-			}
+		// Загружаем Worker-представление через единый storage-слой (с категориями)
+		workerResp, _ := storage.WorkerByUserID(db, userID)
 
-			response := map[string]interface{}{
-				"id":    user.ID,
-				"email": user.Email,
-				"role":  user.Role.RoleName,
-				"name":  user.Name,
-				"phone": user.Phone,
-				"worker": map[string]interface{}{
-					"specialization": worker.Categories,
-					"experience":     worker.ExpYears,
-					// "rating":         worker.Rating,
-					"description": worker.Description,
-					"is_busy":     worker.IsBusy,
-					"reviews":     worker.ReviewsReceived,
-				},
-			}
-			json.NewEncoder(w).Encode(response)
-			return
-		}
-
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		response := map[string]interface{}{
 			"id":    user.ID,
 			"email": user.Email,
 			"role":  user.Role.RoleName,
 			"name":  user.Name,
 			"phone": user.Phone,
-		})
+		}
+
+		if workerResp != nil && workerResp.HaveWorkerProfile {
+			response["have_worker_profile"] = true
+			response["worker"] = map[string]interface{}{
+				"specialization": workerResp.Categories,
+				"experience":     workerResp.ExpYears,
+				"description":    workerResp.Description,
+				"is_busy":        workerResp.IsBusy,
+				"location":       workerResp.Location,
+				"schedule":       workerResp.Schedule,
+			}
+		} else {
+			response["have_worker_profile"] = false
+		}
+
+		json.NewEncoder(w).Encode(response)
 	}
 }
 
@@ -97,6 +88,8 @@ func editProfile(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 			ExpYears    *int    `json:"exp_years,omitempty"`
 			Description *string `json:"description,omitempty"`
 			IsBusy      *bool   `json:"is_busy,omitempty"`
+			Location    *string `json:"location,omitempty"`
+			Schedule    *string `json:"schedule,omitempty"`
 			Categories  []uint  `json:"categories,omitempty"`
 		}
 
@@ -142,38 +135,41 @@ func editProfile(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		if user.Role.RoleName == "worker" {
-			workerUpdates := map[string]interface{}{}
-			if input.ExpYears != nil {
-				workerUpdates["exp_years"] = *input.ExpYears
-			}
-			if input.Description != nil {
-				workerUpdates["description"] = *input.Description
-			}
-			if input.IsBusy != nil {
-				workerUpdates["is_busy"] = *input.IsBusy
-			}
-
-			if len(userUpdates) == 0 && len(workerUpdates) == 0 {
-				tx.Rollback()
-				http.Error(w, "Database error, no fields", http.StatusInternalServerError)
-				return
-			}
-
-			if len(workerUpdates) > 0 {
-				result := tx.Model(&models.WorkerProfile{}).Where("user_id = ?", userID).Updates(workerUpdates)
-				if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-					tx.Rollback()
-					http.Error(w, "Database error", http.StatusInternalServerError)
-					return
-				}
-			}
+		workerUpdates := map[string]interface{}{}
+		if input.ExpYears != nil {
+			workerUpdates["exp_years"] = *input.ExpYears
+		}
+		if input.Description != nil {
+			workerUpdates["description"] = *input.Description
+		}
+		if input.IsBusy != nil {
+			workerUpdates["is_busy"] = *input.IsBusy
+		}
+		if input.Location != nil {
+			workerUpdates["location"] = *input.Location
+		}
+		if input.Schedule != nil {
+			workerUpdates["schedule"] = *input.Schedule
 		}
 
-		if len(userUpdates) == 0 && user.Role.RoleName != "worker" {
+		// Если пришли данные для воркера, помечаем профиль как активный
+		if len(workerUpdates) > 0 {
+			workerUpdates["have_worker_profile"] = true
+		}
+
+		if len(userUpdates) == 0 && len(workerUpdates) == 0 {
 			tx.Rollback()
 			http.Error(w, "Database error, no fields", http.StatusInternalServerError)
 			return
+		}
+
+		if len(workerUpdates) > 0 {
+			result := tx.Model(&models.WorkerProfile{}).Where("user_id = ?", userID).Updates(workerUpdates)
+			if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+				tx.Rollback()
+				http.Error(w, "Database error", http.StatusInternalServerError)
+				return
+			}
 		}
 
 		if err := tx.Commit().Error; err != nil {
@@ -188,12 +184,13 @@ func editProfile(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"id":     updatedUser.ID,
-			"email":  updatedUser.Email,
-			"name":   updatedUser.Name,
-			"role":   updatedUser.Role.RoleName,
-			"worker": updatedUser.WorkerProfile != nil, // Есть ли профиль worker
+			"id":             updatedUser.ID,
+			"email":          updatedUser.Email,
+			"name":           updatedUser.Name,
+			"role":           updatedUser.Role.RoleName,
+			"worker":         updatedUser.WorkerProfile != nil,
+			"user_updates":   userUpdates,
+			"worker_updates": workerUpdates,
 		})
 	}
 }
-

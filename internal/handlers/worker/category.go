@@ -80,9 +80,24 @@ func addMyCategoriesByName(db *gorm.DB, logger *slog.Logger, w http.ResponseWrit
 		}
 	}
 
-	tx.Commit()
+	if err := tx.Commit().Error; err != nil {
+		logger.Error("failed to commit categories add tx", "error", err)
+		http.Error(w, `{"error": "failed to add category"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Возвращаем обновлённый список категорий
+	updatedWorker, err := storage.WorkerByUserID(db, workerID)
+	if err != nil || updatedWorker == nil {
+		http.Error(w, `{"error": "failed to load categories"}`, http.StatusInternalServerError)
+		return
+	}
+
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"message": "categories added"})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":    "categories added",
+		"categories": updatedWorker.Categories,
+	})
 }
 
 func deleteMyCategoriesByName(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http.Request, workerID uint) {
@@ -120,7 +135,22 @@ func deleteMyCategoriesByName(db *gorm.DB, logger *slog.Logger, w http.ResponseW
 		}
 	}
 
-	tx.Commit()
+	if err := tx.Commit().Error; err != nil {
+		logger.Error("failed to commit categories delete tx", "error", err)
+		http.Error(w, `{"error": "failed to delete category"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Возвращаем обновлённый список категорий
+	updatedWorker, err := storage.WorkerByUserID(db, workerID)
+	if err != nil || updatedWorker == nil {
+		http.Error(w, `{"error": "failed to load categories"}`, http.StatusInternalServerError)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "categories deleted"})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":    "categories deleted",
+		"categories": updatedWorker.Categories,
+	})
 }

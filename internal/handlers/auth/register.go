@@ -71,23 +71,24 @@ func RegisterHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 			RoleID:       input.RoleID,
 		}
 
-		if err := db.Create(&user).Error; err != nil {
+		// создаём пользователя в рамках транзакции
+		if err := tx.Create(&user).Error; err != nil {
 			tx.Rollback()
 			logger.Error("Ошибка вставки пользователя", "err:", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		if input.RoleID == 2 {
-			workerProfile := models.WorkerProfile{
-				UserID: user.ID,
-				IsBusy: false,
-			}
-			if err := tx.Create(&workerProfile).Error; err != nil {
-				tx.Rollback()
-				http.Error(w, "Failed to create worker profile", http.StatusInternalServerError)
-				return
-			}
+		// и сразу создаём связанный WorkerProfile для любого пользователя (user_id == worker_id)
+		workerProfile := models.WorkerProfile{
+			UserID:            user.ID,
+			IsBusy:            false,
+			HaveWorkerProfile: false, // пока профиль не заполнен
+		}
+		if err := tx.Create(&workerProfile).Error; err != nil {
+			tx.Rollback()
+			http.Error(w, "Failed to create worker profile", http.StatusInternalServerError)
+			return
 		}
 
 		if err := tx.Commit().Error; err != nil {
