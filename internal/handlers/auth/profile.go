@@ -196,3 +196,4 @@ func editProfile(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 		})
 	}
 }
+

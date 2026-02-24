@@ -60,9 +60,9 @@ type WorkerProfile struct {
 	IsBusy      bool    `gorm:"default:false;not null" json:"is_busy"`
 
 	// Связи (UserID вместо ID!)
-	User            User             `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	ReviewsReceived []Review         `gorm:"foreignKey:WorkerID" json:"reviews_received,omitempty"`
-	Categories      []WorkerCategory `gorm:"foreignKey:WorkerID" json:"categories,omitempty"`
+	User            User             `gorm:"foreignKey:UserID;references:ID" json:"user,omitempty"`
+	ReviewsReceived []Review         `gorm:"foreignKey:WorkerID;references:UserID" json:"reviews_received,omitempty"`
+	Categories      []WorkerCategory `gorm:"foreignKey:WorkerID;references:UserID" json:"categories,omitempty"`
 }
 
 type Ad struct {
@@ -89,7 +89,7 @@ type WorkerCategory struct {
 	WorkerID   uint `gorm:"primaryKey" json:"worker_id"`
 	CategoryID uint `gorm:"primaryKey" json:"category_id"`
 
-	Worker   WorkerProfile `gorm:"foreignKey:WorkerID" json:"-"`
+	Worker   WorkerProfile `gorm:"foreignKey:WorkerID;references:UserID" json:"-"`
 	Category Category      `gorm:"foreignKey:CategoryID" json:"-"`
 }
 
@@ -103,7 +103,7 @@ type Review struct {
 
 	// Связи
 	User   User          `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Worker WorkerProfile `gorm:"foreignKey:WorkerID" json:"worker,omitempty"`
+	Worker WorkerProfile `gorm:"foreignKey:WorkerID;references:UserID" json:"worker,omitempty"`
 }
 
 type BlackList struct {
