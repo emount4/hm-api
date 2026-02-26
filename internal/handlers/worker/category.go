@@ -61,6 +61,15 @@ func addMyCategoriesByName(db *gorm.DB, logger *slog.Logger, w http.ResponseWrit
 		}
 	}()
 
+	// Гарантируем наличие WorkerProfile (для старых пользователей)
+	var wp models.WorkerProfile
+	if err := tx.FirstOrCreate(&wp, models.WorkerProfile{UserID: workerID}).Error; err != nil {
+		tx.Rollback()
+		logger.Error("failed to ensure worker profile", "error", err)
+		http.Error(w, `{"error": "failed to add category"}`, http.StatusInternalServerError)
+		return
+	}
+
 	for _, name := range req.CategoryNames {
 		var category models.Category
 		if err := tx.Where("name ILIKE ?", name).First(&category).Error; err != nil {

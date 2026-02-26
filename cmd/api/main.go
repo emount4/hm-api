@@ -4,6 +4,7 @@ import (
 	"go-api/internal/auth"
 	"go-api/internal/config"
 	handlerAuth "go-api/internal/handlers/auth"
+	handlerInfo "go-api/internal/handlers/info"
 	handlerSys "go-api/internal/handlers/sys"
 	handlerWork "go-api/internal/handlers/worker"
 	"go-api/internal/storage"
@@ -39,6 +40,7 @@ func main() {
 	handlerAuth.SetupRoutes(store.DB(), logger, r)
 	handlerSys.SetupRoutes(store.DB(), logger, r)
 	handlerWork.SetupRoutes(store.DB(), logger, r)
+	handlerInfo.SetupRoutes(store.DB(), logger, r)
 
 	logger.Info("server started", slog.String("port", ":8080"))
 	http.ListenAndServe(":8080", r)

@@ -84,13 +84,15 @@ func editProfile(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 			Name  *string `json:"name,omitempty"`
 			Phone *string `json:"phone,omitempty"`
 
-			// WorkerProfile поля (только если роль worker)
+			// WorkerProfile поля
 			ExpYears    *int    `json:"exp_years,omitempty"`
 			Description *string `json:"description,omitempty"`
 			IsBusy      *bool   `json:"is_busy,omitempty"`
 			Location    *string `json:"location,omitempty"`
 			Schedule    *string `json:"schedule,omitempty"`
-			Categories  []uint  `json:"categories,omitempty"`
+
+			// Категории по НАЗВАНИЯМ (полная замена списка)
+			CategoryNames []string `json:"category_names,omitempty"`
 		}
 
 		var input ProfileInput
@@ -152,12 +154,47 @@ func editProfile(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 			workerUpdates["schedule"] = *input.Schedule
 		}
 
-		// Если пришли данные для воркера, помечаем профиль как активный
-		if len(workerUpdates) > 0 {
+		// Обновление категорий работника (полная замена списка по НАЗВАНИЯМ)
+		if len(input.CategoryNames) > 0 {
+			// Гарантируем наличие WorkerProfile (для старых пользователей)
+			var wp models.WorkerProfile
+			if err := tx.FirstOrCreate(&wp, models.WorkerProfile{UserID: userID}).Error; err != nil {
+				tx.Rollback()
+				http.Error(w, "Database error", http.StatusInternalServerError)
+				return
+			}
+
+			// Сначала чистим все старые категории
+			if err := tx.Where("worker_id = ?", userID).Delete(&models.WorkerCategory{}).Error; err != nil {
+				tx.Rollback()
+				http.Error(w, "Database error", http.StatusInternalServerError)
+				return
+			}
+
+			// Вставляем новые связи по именам категорий
+			for _, name := range input.CategoryNames {
+				var category models.Category
+				if err := tx.Where("name ILIKE ?", name).First(&category).Error; err != nil {
+					tx.Rollback()
+					http.Error(w, "Category not found", http.StatusBadRequest)
+					return
+				}
+
+				wc := models.WorkerCategory{WorkerID: userID, CategoryID: category.ID}
+				if err := tx.Create(&wc).Error; err != nil {
+					tx.Rollback()
+					http.Error(w, "Database error", http.StatusInternalServerError)
+					return
+				}
+			}
+		}
+
+		// Если пришли данные для воркера или категорий, помечаем профиль как активный
+		if len(workerUpdates) > 0 || len(input.CategoryNames) > 0 {
 			workerUpdates["have_worker_profile"] = true
 		}
 
-		if len(userUpdates) == 0 && len(workerUpdates) == 0 {
+		if len(userUpdates) == 0 && len(workerUpdates) == 0 && len(input.CategoryNames) == 0 {
 			tx.Rollback()
 			http.Error(w, "Database error, no fields", http.StatusInternalServerError)
 			return
