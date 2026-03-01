@@ -12,37 +12,51 @@ import (
 	"gorm.io/gorm"
 )
 
-func AdsHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
+// PublicAdsHandler - публичный доступ (только GET)
+func PublicAdsHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		user, ok := r.Context().Value("user_id").(*models.User)
-		if !ok || user == nil {
+		if r.Method == http.MethodGet {
+			getAdsPublic(db, logger, w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+// ProtectedAdsHandler - защищённый доступ (POST/PATCH/DELETE/GET для личных объявлений)
+func ProtectedAdsHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		userID, ok := r.Context().Value("user_id").(uint)
+		if !ok {
 			http.Error(w, `{"error": "unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
 		switch r.Method {
 		case http.MethodGet:
-			getAds(db, logger, w, r, user)
+			getAdsProtected(db, logger, w, r, userID)
 		case http.MethodPost:
-			createAd(db, logger, w, r, user)
+			createAd(db, logger, w, r, userID)
 		case http.MethodPatch:
-			updateAd(db, logger, w, r, user)
+			updateAd(db, logger, w, r, userID)
 		case http.MethodDelete:
-			deleteAd(db, logger, w, r, user)
+			deleteAd(db, logger, w, r, userID)
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	}
 }
 
-// Основная GET функция
-func getAds(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http.Request, user *models.User) {
+// GET для публичного доступа
+func getAdsPublic(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http.Request) {
 	adIDStr := chi.URLParam(r, "adID")
 
 	if adIDStr != "" {
 		id, _ := strconv.ParseUint(adIDStr, 10, 32)
-		getAdByID(db, logger, w, uint(id), user.ID)
+		getAdByIDPublic(db, logger, w, uint(id))
 		return
 	}
 	limit := 10
@@ -56,13 +70,48 @@ func getAds(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http.Req
 	getAdsList(db, logger, w, r, limit, offset)
 }
 
+// GET для защищённого доступа (личные объявления)
+func getAdsProtected(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http.Request, userID uint) {
+	adIDStr := chi.URLParam(r, "adID")
+
+	if adIDStr != "" {
+		id, _ := strconv.ParseUint(adIDStr, 10, 32)
+		getAdByID(db, logger, w, uint(id), userID)
+		return
+	}
+	// Список личных объявлений пользователя
+	limit := 10
+	offset := 0
+	if l := r.URL.Query().Get("limit"); l != "" {
+		limit, _ = strconv.Atoi(l)
+	}
+	if o := r.URL.Query().Get("offset"); o != "" {
+		offset, _ = strconv.Atoi(o)
+	}
+	getMyAdsList(db, logger, w, userID, limit, offset)
+}
+
 // Вспомогательные GET функции
 
-// Объявление по id
+// Объявление по id (публичное)
+func getAdByIDPublic(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, adID uint) {
+	var ad models.Ad
+
+	if err := db.Preload("Category").Preload("PriceUnit").Preload("User").
+		Where("id = ?", adID).
+		First(&ad).Error; err != nil {
+		http.Error(w, `{"error": "ad not found"}`, http.StatusNotFound)
+		return
+	}
+
+	json.NewEncoder(w).Encode(ad)
+}
+
+// Объявление по id (для владельца)
 func getAdByID(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, adID uint, ownerID uint) {
 	var ad models.Ad
 
-	if err := db.Preload("Category").Preload("PriceUnit").
+	if err := db.Preload("Category").Preload("PriceUnit").Preload("User").
 		Where("id = ? AND user_id = ?", adID, ownerID).
 		First(&ad).Error; err != nil {
 		http.Error(w, `{"error": "ad not found"}`, http.StatusNotFound)
@@ -72,23 +121,25 @@ func getAdByID(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, adID uin
 	json.NewEncoder(w).Encode(ad)
 }
 
-// Список объявлений
+// Список объявлений (публичный)
 func getAdsList(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http.Request, limit, offset int) {
 	type AdList struct {
-		ID        uint            `json:"id"`
-		Title     string          `json:"title"`
-		Price     float64         `json:"price"`
-		Location  string          `json:"location"`
-		Category  models.Category `json:"category"`
-		User      models.User     `json:"user"`
-		CreatedAt time.Time       `json:"created_at"`
+		ID           uint      `json:"id"`
+		Title        string    `json:"title"`
+		Price        float64   `json:"price"`
+		Location     string    `json:"location"`
+		CreatedAt    time.Time `json:"created_at"`
+		CategoryID   uint      `json:"category_id"`
+		CategoryName string    `json:"category_name"`
+		UserID       uint      `json:"user_id"`
+		UserName     string    `json:"user_name"`
 	}
 
 	var ads []AdList
 	query := db.Table("ads a").
 		Select("a.id, a.title, a.price, a.location, a.created_at, " +
-			"c.name as category_name, c.id as category_id, " +
-			"u.name as user_name, u.id as user_id").
+			"c.id as category_id, c.name as category_name, " +
+			"u.id as user_id, u.name as user_name").
 		Joins("JOIN categories c ON a.category_id = c.id").
 		Joins("JOIN users u ON a.user_id = u.id").
 		Order("a.created_at DESC").
@@ -127,7 +178,58 @@ func getAdsList(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http
 	})
 }
 
-func createAd(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http.Request, user *models.User) {
+// Список личных объявлений пользователя
+func getMyAdsList(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, userID uint, limit, offset int) {
+	type AdList struct {
+		ID            uint      `json:"id"`
+		Title         string    `json:"title"`
+		Price         float64   `json:"price"`
+		Location      string    `json:"location"`
+		Schedule      string    `json:"schedule"`
+		CreatedAt     time.Time `json:"created_at"`
+		CategoryID    uint      `json:"category_id"`
+		CategoryName  string    `json:"category_name"`
+		PriceUnitID   uint      `json:"price_unit_id"`
+		PriceUnitName string    `json:"price_unit_name"`
+	}
+
+	var ads []AdList
+	query := db.Table("ads a").
+		Select("a.id, a.title, a.price, a.location, a.schedule, a.created_at, "+
+			"c.id as category_id, c.name as category_name, "+
+			"pu.id as price_unit_id, pu.name as price_unit_name").
+		Joins("JOIN categories c ON a.category_id = c.id").
+		Joins("JOIN price_units pu ON a.price_unit_id = pu.id").
+		Where("a.user_id = ?", userID).
+		Order("a.created_at DESC").
+		Limit(limit).
+		Offset(offset)
+
+	var total int64
+	db.Model(&models.Ad{}).Where("user_id = ?", userID).Count(&total)
+
+	if err := query.Scan(&ads).Error; err != nil {
+		logger.Error("failed to get my ads list", "error", err)
+		http.Error(w, `{"error": "internal server error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	type Response struct {
+		Ads    []AdList `json:"ads"`
+		Total  int64    `json:"total"`
+		Limit  int      `json:"limit"`
+		Offset int      `json:"offset"`
+	}
+
+	json.NewEncoder(w).Encode(Response{
+		Ads:    ads,
+		Total:  total,
+		Limit:  limit,
+		Offset: offset,
+	})
+}
+
+func createAd(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http.Request, userID uint) {
 	type CreateAdRequest struct {
 		Title       string  `json:"title"`
 		Price       float64 `json:"price"`
@@ -168,7 +270,7 @@ func createAd(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http.R
 		Price:       req.Price,
 		CategoryID:  req.CategoryID,
 		PriceUnitID: req.PriceUnitID,
-		UserID:      user.ID,
+		UserID:      userID,
 		Location:    req.Location,
 		Schedule:    req.Schedule,
 		CreatedAt:   time.Now(),
@@ -187,7 +289,7 @@ func createAd(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http.R
 	json.NewEncoder(w).Encode(ad)
 }
 
-func updateAd(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http.Request, user *models.User) {
+func updateAd(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http.Request, userID uint) {
 	adIDStr := chi.URLParam(r, "adID")
 	if adIDStr == "" {
 		http.Error(w, `{"error": "ad id is required"}`, http.StatusBadRequest)
@@ -218,7 +320,7 @@ func updateAd(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http.R
 
 	// Находим объявление и проверяем владельца
 	var ad models.Ad
-	if err := db.Where("id = ? AND user_id = ?", uint(adID), user.ID).First(&ad).Error; err != nil {
+	if err := db.Where("id = ? AND user_id = ?", uint(adID), userID).First(&ad).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			http.Error(w, `{"error": "ad not found or access denied"}`, http.StatusNotFound)
 		} else {
@@ -284,7 +386,7 @@ func updateAd(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http.R
 	json.NewEncoder(w).Encode(ad)
 }
 
-func deleteAd(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http.Request, user *models.User) {
+func deleteAd(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http.Request, userID uint) {
 	adIDStr := chi.URLParam(r, "adID")
 	if adIDStr == "" {
 		http.Error(w, `{"error": "ad id is required"}`, http.StatusBadRequest)
@@ -299,7 +401,7 @@ func deleteAd(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http.R
 
 	// Находим объявление и проверяем владельца
 	var ad models.Ad
-	if err := db.Where("id = ? AND user_id = ?", uint(adID), user.ID).First(&ad).Error; err != nil {
+	if err := db.Where("id = ? AND user_id = ?", uint(adID), userID).First(&ad).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			http.Error(w, `{"error": "ad not found or access denied"}`, http.StatusNotFound)
 		} else {

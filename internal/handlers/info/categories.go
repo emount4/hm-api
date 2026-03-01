@@ -15,7 +15,7 @@ func CategoriesHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 
 		var categories []models.Category
 
-		if err := db.Select("id, name").Order("name ASC").Find(&categories).Error; err != nil {
+		if err := db.Select("id, name").Find(&categories).Error; err != nil {
 			http.Error(w, "Database error", http.StatusInternalServerError)
 			logger.Error("Ошибка парсинга категорий из бд", "error", err)
 			return

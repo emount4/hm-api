@@ -44,8 +44,11 @@ type JWT struct {
 
 func MustLoad() *Config {
 	configPath := os.Getenv("CONFIG_PATH")
+
+	// Если CONFIG_PATH не установлена, используем значение по умолчанию
 	if configPath == "" {
-		log.Fatal("CONFIG_PATH is not set")
+		configPath = "./config/local.yaml"
+		log.Printf("CONFIG_PATH not set, using default: %s", configPath)
 	}
 
 	//проверка существования файла

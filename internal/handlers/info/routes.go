@@ -8,5 +8,10 @@ import (
 )
 
 func SetupRoutes(db *gorm.DB, logger *slog.Logger, r chi.Router) {
-	r.Get("/info/categories", CategoriesHandler(db, logger))
+
+	r.Route("/info", func(r chi.Router) {
+		r.Get("/categories", CategoriesHandler(db, logger))
+		r.Get("/price_units", PriceUnitsHandler(db, logger))
+	})
+
 }
