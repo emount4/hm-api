@@ -70,17 +70,30 @@ db:
 
 **Основные эндпоинты:**
 
+### Аутентификация
 - `POST /auth/register` - Регистрация
 - `POST /auth/login` - Вход
 - `GET /profile` - Получить профиль
 - `PATCH /profile` - Обновить профиль
+
+### Объявления клиентов
 - `GET /ads` - Список объявлений (публичный)
-- `POST /my-ads/` - Создать объявление
+- `GET /ads/{id}` - Получить объявление по ID
+- `GET /my-ads` - Мои объявления
+- `POST /my-ads` - Создать объявление
 - `PATCH /my-ads/{id}` - Обновить объявление
 - `DELETE /my-ads/{id}` - Удалить объявление
+
+### Отклики мастеров
+- `GET /responses` - Мои отклики (для мастеров)
+- `POST /responses` - Откликнуться на объявление
+- `DELETE /responses/{id}` - Отменить отклик
+
+### Мастера и справочники
 - `GET /handyman` - Список мастеров
 - `GET /handyman/{id}` - Мастер по ID
 - `GET /info/categories` - Список категорий
+- `GET /info/price-units` - Единицы измерения цены
 
 ## 🛠️ Структура проекта
 
@@ -162,7 +175,7 @@ curl -X POST http://localhost:8080/auth/login \
 
 ### Создание объявления
 ```bash
-curl -X POST http://localhost:8080/my-ads/ \
+curl -X POST http://localhost:8080/my-ads \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -d '{
@@ -170,8 +183,40 @@ curl -X POST http://localhost:8080/my-ads/ \
     "price": 3000,
     "category_id": 1,
     "price_unit_id": 1,
-    "location": "Москва"
+    "location": "Москва",
+    "schedule": "будние дни, 9-18"
   }'
+```
+
+### Просмотр объявлений
+```bash
+# Все объявления (публичный доступ)
+curl -X GET "http://localhost:8080/ads?category=1&location=Москва&limit=10"
+
+# Мои объявления (требуется авторизация)
+curl -X GET http://localhost:8080/my-ads \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Отклик мастера на объявление
+```bash
+# Создать отклик
+curl -X POST http://localhost:8080/responses \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer MASTER_TOKEN" \
+  -d '{
+    "ad_id": 5,
+    "message": "Готов выполнить работу качественно и в срок",
+    "proposed_price": 2500
+  }'
+
+# Мои отклики
+curl -X GET http://localhost:8080/responses \
+  -H "Authorization: Bearer MASTER_TOKEN"
+
+# Отменить отклик
+curl -X DELETE http://localhost:8080/responses/123 \
+  -H "Authorization: Bearer MASTER_TOKEN"
 ```
 
 ## 🐛 Отладка
