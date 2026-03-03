@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// Для юзеров
 func UserByEmail(db *gorm.DB, email string) (*models.User, error) {
 	var user models.User
 	result := db.Where("email = ?", email).Preload("Role").First(&user)
@@ -18,6 +19,7 @@ func UserById(db *gorm.DB, id uint) (*models.User, error) {
 	return &user, result.Error
 }
 
+// Для рабочих
 type CategoryJSON struct {
 	ID   uint   `json:"id"`
 	Name string `json:"name"`

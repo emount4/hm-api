@@ -7,7 +7,7 @@ import (
 )
 
 // ======================================================================
-// СПРАВОЧНИКИ (создаются ПЕРВЫМИ)
+// СПРАВОЧНИКИ
 // ======================================================================
 
 type Role struct {
@@ -58,8 +58,8 @@ type WorkerProfile struct {
 	ExpYears    *int    `json:"exp_years"`                     // NULLABLE
 	Description *string `gorm:"size:255" json:"description"`
 	IsBusy      bool    `gorm:"default:false;not null" json:"is_busy"`
-	Location    string  `gorm:"size:255" json:"location"`   // место жительства / работы
-	Schedule    string  `gorm:"size:255" json:"schedule"`   // расписание (часы / дни)
+	Location    string  `gorm:"size:255" json:"location"` // место жительства / работы
+	Schedule    string  `gorm:"size:255" json:"schedule"` // расписание (часы / дни)
 	// Пометка, что профиль реально заполнен и пользователь считается "рабочим"
 	HaveWorkerProfile bool `gorm:"default:false;not null" json:"have_worker_profile"`
 
@@ -76,8 +76,8 @@ type Ad struct {
 	CategoryID  uint      `gorm:"not null;index" json:"category_id"`
 	PriceUnitID uint      `gorm:"not null;index" json:"price_unit_id"`
 	UserID      uint      `gorm:"not null;index" json:"user_id"`
-	Location    string    `gorm:"size:255" json:"location"`   // локация объявления
-	Schedule    string    `gorm:"size:255" json:"schedule"`   // когда актуально объявление
+	Location    string    `gorm:"size:255" json:"location"` // локация объявления
+	Schedule    string    `gorm:"size:255" json:"schedule"` // когда актуально объявление
 	CreatedAt   time.Time `gorm:"not null;index" json:"created_at"`
 	// IsApproved  bool      `gorm:"default:false;index" json:"is_approved"`
 
@@ -109,6 +109,20 @@ type Review struct {
 
 	// Связи
 	User   User          `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Worker WorkerProfile `gorm:"foreignKey:WorkerID;references:UserID" json:"worker,omitempty"`
+}
+
+type Response struct {
+	gorm.Model
+	AdID          uint      `gorm:"not null;index" json:"ad_id"`
+	WorkerID      uint      `gorm:"not null;index" json:"worker_id"`                        // UserID мастера
+	Message       string    `gorm:"size:500" json:"message"`                                // сообщение от мастера
+	ProposedPrice *float64  `gorm:"type:decimal(10,2)" json:"proposed_price"`               // предлагаемая цена (опционально)
+	Status        string    `gorm:"size:50;not null;default:'pending';index" json:"status"` // pending, accepted, rejected, cancelled
+	CreatedAt     time.Time `gorm:"not null;index" json:"created_at"`
+
+	// Связи
+	Ad     Ad            `gorm:"foreignKey:AdID" json:"ad,omitempty"`
 	Worker WorkerProfile `gorm:"foreignKey:WorkerID;references:UserID" json:"worker,omitempty"`
 }
 

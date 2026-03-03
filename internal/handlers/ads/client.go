@@ -124,23 +124,29 @@ func getAdByID(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, adID uin
 // Список объявлений (публичный)
 func getAdsList(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http.Request, limit, offset int) {
 	type AdList struct {
-		ID           uint      `json:"id"`
-		Title        string    `json:"title"`
-		Price        float64   `json:"price"`
-		Location     string    `json:"location"`
-		CreatedAt    time.Time `json:"created_at"`
-		CategoryID   uint      `json:"category_id"`
-		CategoryName string    `json:"category_name"`
-		UserID       uint      `json:"user_id"`
-		UserName     string    `json:"user_name"`
+		ID            uint      `json:"id"`
+		Title         string    `json:"title"`
+		Price         float64   `json:"price"`
+		Location      string    `json:"location"`
+		Schedule      string    `json:"schedule"`
+		CreatedAt     time.Time `json:"created_at"`
+		CategoryID    uint      `json:"category_id"`
+		CategoryName  string    `json:"category_name"`
+		PriceUnitID   uint      `json:"price_unit_id"`
+		PriceUnitName string    `json:"price_unit_name"`
+		UserID        uint      `json:"user_id"`
+		UserName      string    `json:"user_name"`
+		UserPhone     string    `json:"user_phone"`
 	}
 
 	var ads []AdList
 	query := db.Table("ads a").
-		Select("a.id, a.title, a.price, a.location, a.created_at, " +
+		Select("a.id, a.title, a.price, a.location, a.schedule, a.created_at, " +
 			"c.id as category_id, c.name as category_name, " +
-			"u.id as user_id, u.name as user_name").
+			"pu.id as price_unit_id, pu.name as price_unit_name, " +
+			"u.id as user_id, u.name as user_name, u.phone as user_phone").
 		Joins("JOIN categories c ON a.category_id = c.id").
+		Joins("JOIN price_units pu ON a.price_unit_id = pu.id").
 		Joins("JOIN users u ON a.user_id = u.id").
 		Order("a.created_at DESC").
 		Limit(limit).

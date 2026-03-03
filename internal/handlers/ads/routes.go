@@ -11,6 +11,7 @@ import (
 func SetupRoutes(db *gorm.DB, logger *slog.Logger, r chi.Router) {
 	public := chi.NewRouter()
 	protected := chi.NewRouter()
+	master := chi.NewRouter()
 
 	//  ПУБЛИЧНЫЕ (мастера смотрят без токена)
 	public.Get("/", PublicAdsHandler(db, logger))       // GET /ads - список всех
@@ -24,6 +25,13 @@ func SetupRoutes(db *gorm.DB, logger *slog.Logger, r chi.Router) {
 	protected.Patch("/{adID}", ProtectedAdsHandler(db, logger))  // PATCH /my-ads/123 - обновить
 	protected.Delete("/{adID}", ProtectedAdsHandler(db, logger)) // DELETE /my-ads/123 - удалить
 
-	r.Mount("/ads", public)       // /ads → публичные
-	r.Mount("/my-ads", protected) // /my-ads → личный кабинет
+	// МАСТЕРА (управление откликами)
+	master.Use(middleware.AuthMiddleware(logger))
+	master.Get("/", MasterResponsesHandler(db, logger))                // GET /responses - мои отклики
+	master.Post("/", MasterResponsesHandler(db, logger))               // POST /responses - создать отклик
+	master.Delete("/{responseID}", MasterResponsesHandler(db, logger)) // DELETE /responses/123 - удалить отклик
+
+	r.Mount("/ads", public)       // /ads → публичные объявления (для всех)
+	r.Mount("/my-ads", protected) // /my-ads → личный кабинет клиента
+	r.Mount("/responses", master) // /responses → отклики мастера
 }
