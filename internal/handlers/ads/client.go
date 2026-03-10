@@ -141,9 +141,9 @@ func getAdsList(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http
 
 	var ads []AdList
 	query := db.Table("ads a").
-		Select("a.id, a.title, a.price, a.location, a.schedule, a.created_at, " +
-			"c.id as category_id, c.name as category_name, " +
-			"pu.id as price_unit_id, pu.name as price_unit_name, " +
+		Select("a.id, a.title, a.price, a.location, a.schedule, a.created_at, "+
+			"c.id as category_id, c.name as category_name, "+
+			"pu.id as price_unit_id, pu.name as price_unit_name, "+
 			"u.id as user_id, u.name as user_name, u.phone as user_phone").
 		Joins("JOIN categories c ON a.category_id = c.id").
 		Joins("JOIN price_units pu ON a.price_unit_id = pu.id").

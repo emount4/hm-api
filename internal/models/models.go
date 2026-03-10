@@ -55,7 +55,7 @@ type User struct {
 type WorkerProfile struct {
 	gorm.Model
 	UserID      uint    `gorm:"not null;uniqueIndex" json:"-"`
-	ExpYears    *int    `json:"exp_years"`                     // NULLABLE
+	ExpYears    *int    `json:"exp_years"` // NULLABLE
 	Description *string `gorm:"size:255" json:"description"`
 	IsBusy      bool    `gorm:"default:false;not null" json:"is_busy"`
 	Location    string  `gorm:"size:255" json:"location"` // место жительства / работы
