@@ -37,5 +37,16 @@ func SetupRoutes(db *gorm.DB, logger *slog.Logger, r chi.Router) {
 	admin.Post("/blacklist", AddToBlacklistHandler(db, logger))                // POST /admin/blacklist
 	admin.Delete("/blacklist/{email}", RemoveFromBlacklistHandler(db, logger)) // DELETE /admin/blacklist/email@example.com
 
+	// Управление справочниками
+	// Категории
+	admin.Post("/categories", CreateCategoryHandler(db, logger))                // POST /admin/categories - создать категорию
+	admin.Patch("/categories/{categoryID}", UpdateCategoryHandler(db, logger))  // PATCH /admin/categories/123 - обновить категорию
+	admin.Delete("/categories/{categoryID}", DeleteCategoryHandler(db, logger)) // DELETE /admin/categories/123 - удалить категорию
+
+	// Единицы цены
+	admin.Post("/price-units", CreatePriceUnitHandler(db, logger))                 // POST /admin/price-units - создать единицу цены
+	admin.Patch("/price-units/{priceUnitID}", UpdatePriceUnitHandler(db, logger))  // PATCH /admin/price-units/123 - обновить единицу цены
+	admin.Delete("/price-units/{priceUnitID}", DeletePriceUnitHandler(db, logger)) // DELETE /admin/price-units/123 - удалить единицу цены
+
 	r.Mount("/admin", admin)
 }

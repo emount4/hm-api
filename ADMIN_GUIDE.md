@@ -295,6 +295,114 @@ DELETE /admin/blacklist/spam@example.com
 
 ---
 
+### Управление справочниками
+
+#### Создать категорию
+```http
+POST /admin/categories
+Content-Type: application/json
+
+{
+  "name": "Ландшафтный дизайн"
+}
+```
+
+**Ответ:**
+```json
+{
+  "message": "Category created successfully",
+  "id": 10,
+  "name": "Ландшафтный дизайн"
+}
+```
+
+#### Обновить категорию
+```http
+PATCH /admin/categories/10
+Content-Type: application/json
+
+{
+  "name": "Ландшафтный дизайн и озеленение"
+}
+```
+
+**Ответ:**
+```json
+{
+  "message": "Category updated successfully",
+  "id": 10,
+  "name": "Ландшафтный дизайн и озеленение"
+}
+```
+
+#### Удалить категорию
+```http
+DELETE /admin/categories/10
+```
+
+**Ответ:**
+```json
+{
+  "message": "Category deleted successfully"
+}
+```
+
+**Примечание:** Категорию нельзя удалить, если она используется в объявлениях или профилях мастеров (возвращает код 409).
+
+#### Создать единицу цены
+```http
+POST /admin/price-units
+Content-Type: application/json
+
+{
+  "name": "за м²"
+}
+```
+
+**Ответ:**
+```json
+{
+  "message": "Price unit created successfully",
+  "id": 5,
+  "name": "за м²"
+}
+```
+
+#### Обновить единицу цены
+```http
+PATCH /admin/price-units/5
+Content-Type: application/json
+
+{
+  "name": "за квадратный метр"
+}
+```
+
+**Ответ:**
+```json
+{
+  "message": "Price unit updated successfully",
+  "id": 5,
+  "name": "за квадратный метр"
+}
+```
+
+#### Удалить единицу цены
+```http
+DELETE /admin/price-units/5
+```
+
+**Ответ:**
+```json
+{
+  "message": "Price unit deleted successfully"
+}
+```
+
+**Примечание:** Единицу цены нельзя удалить, если она используется в объявлениях (возвращает код 409).
+
+---
+
 ## 🛡️ Безопасность
 
 ### Защита эндпоинтов
@@ -375,6 +483,26 @@ curl -X POST http://localhost:8080/admin/blacklist \
   }'
 ```
 
+### Создание новой категории
+```bash
+curl -X POST http://localhost:8080/admin/categories \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Ландшафтный дизайн"
+  }'
+```
+
+### Создание новой единицы цены
+```bash
+curl -X POST http://localhost:8080/admin/price-units \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "за м²"
+  }'
+```
+
 ---
 
 ## 🚀 Создание первого администратора
@@ -450,10 +578,20 @@ WHERE email = 'admin@example.com';
 ├── /stats          - Статистика
 │   └── GET /       - Общая статистика
 │
-└── /blacklist      - Черный список
-    ├── GET /       - Список
-    ├── POST /      - Добавить email
-    └── DELETE /{email} - Удалить email
+├── /blacklist      - Черный список
+│   ├── GET /       - Список
+│   ├── POST /      - Добавить email
+│   └── DELETE /{email} - Удалить email
+│
+├── /categories     - Управление категориями
+│   ├── POST /      - Создать категорию
+│   ├── PATCH /{id} - Обновить категорию
+│   └── DELETE /{id} - Удалить категорию
+│
+└── /price-units    - Управление единицами цены
+    ├── POST /      - Создать единицу цены
+    ├── PATCH /{id} - Обновить единицу цены
+    └── DELETE /{id} - Удалить единицу цены
 ```
 
 ---
