@@ -98,7 +98,7 @@ func getAdByIDPublic(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, ad
 	var ad models.Ad
 
 	if err := db.Preload("Category").Preload("PriceUnit").Preload("User").
-		Where("id = ?", adID).
+		Where("id = ? AND status = ?", adID, "approved").
 		First(&ad).Error; err != nil {
 		http.Error(w, `{"error": "ad not found"}`, http.StatusNotFound)
 		return
@@ -148,6 +148,7 @@ func getAdsList(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http
 		Joins("JOIN categories c ON a.category_id = c.id").
 		Joins("JOIN price_units pu ON a.price_unit_id = pu.id").
 		Joins("JOIN users u ON a.user_id = u.id").
+		Where("a.status = ?", "approved").
 		Order("a.created_at DESC").
 		Limit(limit).
 		Offset(offset)
@@ -161,7 +162,7 @@ func getAdsList(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, r *http
 	}
 
 	var total int64
-	db.Model(&models.Ad{}).Count(&total)
+	db.Model(&models.Ad{}).Where("status = ?", "approved").Count(&total)
 
 	if err := query.Scan(&ads).Error; err != nil {
 		logger.Error("failed to get ads list", "error", err)
@@ -197,13 +198,15 @@ func getMyAdsList(db *gorm.DB, logger *slog.Logger, w http.ResponseWriter, userI
 		CategoryName  string    `json:"category_name"`
 		PriceUnitID   uint      `json:"price_unit_id"`
 		PriceUnitName string    `json:"price_unit_name"`
+		Status        string    `json:"status"` // владелец видит статус модерации
 	}
 
 	var ads []AdList
 	query := db.Table("ads a").
 		Select("a.id, a.title, a.price, a.location, a.schedule, a.created_at, "+
 			"c.id as category_id, c.name as category_name, "+
-			"pu.id as price_unit_id, pu.name as price_unit_name").
+			"pu.id as price_unit_id, pu.name as price_unit_name, "+
+			"a.status").
 		Joins("JOIN categories c ON a.category_id = c.id").
 		Joins("JOIN price_units pu ON a.price_unit_id = pu.id").
 		Where("a.user_id = ?", userID).

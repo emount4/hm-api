@@ -658,6 +658,206 @@ GET /handyman?limit=20&offset=0
 
 ---
 
+### Система модерации
+
+Объявления и профили мастеров после создания получают статус `pending` и **не видны другим пользователям** до одобрения администратором.
+
+#### Статусы
+
+| Статус | Описание |
+|--------|----------|
+| `pending` | На рассмотрении (создан, ждёт проверки) |
+| `approved` | Одобрен, виден пользователям |
+| `rejected` | Отклонён, не виден пользователям |
+
+---
+
+### Модерация объявлений
+
+#### Получить список объявлений
+Админ видит объявления всех статусов; фильтрация через `?status=`.
+
+**Endpoint:** `GET /admin/ads`
+
+**Query параметры:**
+- `status` (string, опционально) — `pending`, `approved`, `rejected`
+- `category` (string, опционально) — фильтр по названию категории (ILIKE)
+- `user_id` (uint, опционально) — фильтр по автору
+- `limit` / `offset` — пагинация
+
+**Ответ (200):**
+```json
+{
+  "ads": [
+    {
+      "id": 15,
+      "title": "Требуется сантехник",
+      "price": 3000,
+      "location": "Москва",
+      "created_at": "2026-03-08T12:00:00Z",
+      "category_name": "Сантехника",
+      "price_unit_name": "час",
+      "user_id": 5,
+      "user_name": "Петр Петров",
+      "user_email": "petr@example.com",
+      "responses_count": 3,
+      "status": "pending"
+    }
+  ],
+  "total": 50,
+  "limit": 10,
+  "offset": 0
+}
+```
+
+---
+
+#### Одобрить объявление
+
+**Endpoint:** `PATCH /admin/ads/{adID}/approve`
+
+**Параметры URL:**
+- `adID` (uint) — ID объявления
+
+**Ответ (200):**
+```json
+{
+  "message": "ad approved successfully",
+  "ad_id": 15,
+  "status": "approved"
+}
+```
+
+**Ошибки:**
+- `400` — Некорректный ID
+- `401` — Не авторизован
+- `403` — Недостаточно прав
+- `404` — Объявление не найдено
+- `500` — Ошибка базы данных
+
+---
+
+#### Отклонить объявление
+
+**Endpoint:** `PATCH /admin/ads/{adID}/reject`
+
+**Параметры URL:**
+- `adID` (uint) — ID объявления
+
+**Ответ (200):**
+```json
+{
+  "message": "ad rejected successfully",
+  "ad_id": 15,
+  "status": "rejected"
+}
+```
+
+**Ошибки:**
+- `400` — Некорректный ID
+- `401` — Не авторизован
+- `403` — Недостаточно прав
+- `404` — Объявление не найдено
+- `500` — Ошибка базы данных
+
+---
+
+#### Удалить объявление
+
+**Endpoint:** `DELETE /admin/ads/{adID}`
+
+**Ответ (200):**
+```json
+{ "message": "ad deleted successfully" }
+```
+
+---
+
+### Модерация профилей мастеров
+
+#### Получить список профилей на модерации
+
+**Endpoint:** `GET /admin/workers`
+
+**Query параметры:**
+- `status` (string, по умолчанию `pending`) — `pending`, `approved`, `rejected`
+- `limit` / `offset` — пагинация
+
+**Ответ (200):**
+```json
+{
+  "workers": [
+    {
+      "user_id": 12,
+      "name": "Сергей Мастеров",
+      "email": "master@example.com",
+      "phone": "+79001234567",
+      "exp_years": 5,
+      "description": "Профессиональный сантехник",
+      "location": "Москва",
+      "schedule": "Пн-Пт 9:00-18:00",
+      "status": "pending"
+    }
+  ],
+  "total": 8,
+  "limit": 10,
+  "offset": 0,
+  "status": "pending"
+}
+```
+
+---
+
+#### Одобрить профиль мастера
+
+**Endpoint:** `PATCH /admin/workers/{workerID}/approve`
+
+**Параметры URL:**
+- `workerID` (uint) — `user_id` мастера
+
+**Ответ (200):**
+```json
+{
+  "message": "worker profile approved successfully",
+  "worker_id": 12,
+  "status": "approved"
+}
+```
+
+**Ошибки:**
+- `400` — Некорректный ID
+- `401` — Не авторизован
+- `403` — Недостаточно прав
+- `404` — Профиль не найден
+- `500` — Ошибка базы данных
+
+---
+
+#### Отклонить профиль мастера
+
+**Endpoint:** `PATCH /admin/workers/{workerID}/reject`
+
+**Параметры URL:**
+- `workerID` (uint) — `user_id` мастера
+
+**Ответ (200):**
+```json
+{
+  "message": "worker profile rejected successfully",
+  "worker_id": 12,
+  "status": "rejected"
+}
+```
+
+**Ошибки:**
+- `400` — Некорректный ID
+- `401` — Не авторизован
+- `403` — Недостаточно прав
+- `404` — Профиль не найден
+- `500` — Ошибка базы данных
+
+---
+
 ### Управление категориями
 
 #### Создать категорию
@@ -939,6 +1139,7 @@ curl -X GET "http://localhost:8080/ads?category=Сантехника&location=М
   "user_id": "uint",
   "location": "string",
   "schedule": "string",
+  "status": "string (pending|approved|rejected)",
   "created_at": "timestamp"
 }
 ```
@@ -952,7 +1153,8 @@ curl -X GET "http://localhost:8080/ads?category=Сантехника&location=М
   "is_busy": "bool",
   "location": "string",
   "schedule": "string",
-  "have_worker_profile": "bool"
+  "have_worker_profile": "bool",
+  "status": "string (pending|approved|rejected)"
 }
 ```
 
@@ -976,6 +1178,7 @@ curl -X GET "http://localhost:8080/ads?category=Сантехника&location=М
    - `1` - Клиент (может создавать объявления)
    - `2` - Мастер (может предоставлять услуги)
 6. **WorkerProfile создаётся автоматически** при регистрации любого пользователя
+7. **Система модерации**: Новые объявления и профили мастеров получают статус `pending` и **не отображаются** публично до одобрения (`approved`) администратором. Владелец объявления всегда видит свои объявления со статусом.
 
 ---
 
@@ -983,4 +1186,4 @@ curl -X GET "http://localhost:8080/ads?category=Сантехника&location=М
 
 Для вопросов по API обращайтесь к разработчику проекта.
 
-**Дата последнего обновления:** 27 февраля 2026
+**Дата последнего обновления:** 10 марта 2026

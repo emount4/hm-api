@@ -38,11 +38,12 @@ func GetAllAdsHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 			UserName       string    `json:"user_name"`
 			UserEmail      string    `json:"user_email"`
 			ResponsesCount int64     `json:"responses_count"`
+			Status         string    `json:"status"`
 		}
 
 		var ads []AdInfo
 		query := db.Table("ads a").
-			Select("a.id, a.title, a.price, a.location, a.created_at, " +
+			Select("a.id, a.title, a.price, a.location, a.created_at, a.status, " +
 				"c.name as category_name, pu.name as price_unit_name, " +
 				"u.id as user_id, u.name as user_name, u.email as user_email, " +
 				"COUNT(r.id) as responses_count").
@@ -51,7 +52,7 @@ func GetAllAdsHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 			Joins("JOIN users u ON a.user_id = u.id").
 			Joins("LEFT JOIN responses r ON a.id = r.ad_id AND r.deleted_at IS NULL").
 			Where("a.deleted_at IS NULL").
-			Group("a.id, a.title, a.price, a.location, a.created_at, c.name, pu.name, u.id, u.name, u.email").
+			Group("a.id, a.title, a.price, a.location, a.created_at, a.status, c.name, pu.name, u.id, u.name, u.email").
 			Order("a.created_at DESC").
 			Limit(limit).
 			Offset(offset)
@@ -62,6 +63,9 @@ func GetAllAdsHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
 		}
 		if userID := r.URL.Query().Get("user_id"); userID != "" {
 			query = query.Where("a.user_id = ?", userID)
+		}
+		if status := r.URL.Query().Get("status"); status != "" {
+			query = query.Where("a.status = ?", status)
 		}
 
 		var total int64
@@ -361,6 +365,197 @@ func RemoveFromBlacklistHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFu
 		json.NewEncoder(w).Encode(map[string]string{
 			"message": "email removed from blacklist",
 			"email":   email,
+		})
+	}
+}
+
+// ======================================================================
+// МОДЕРАЦИЯ — ОДОБРЕНИЕ / ОТКЛОНЕНИЕ
+// ======================================================================
+
+// ApproveAdHandler - одобрить объявление
+func ApproveAdHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		adIDStr := chi.URLParam(r, "adID")
+		adID, err := strconv.ParseUint(adIDStr, 10, 32)
+		if err != nil {
+			http.Error(w, `{"error": "invalid ad id"}`, http.StatusBadRequest)
+			return
+		}
+
+		result := db.Model(&models.Ad{}).Where("id = ?", adID).Update("status", "approved")
+		if result.Error != nil {
+			logger.Error("failed to approve ad", "error", result.Error)
+			http.Error(w, `{"error": "failed to approve ad"}`, http.StatusInternalServerError)
+			return
+		}
+		if result.RowsAffected == 0 {
+			http.Error(w, `{"error": "ad not found"}`, http.StatusNotFound)
+			return
+		}
+
+		logger.Info("ad approved by admin", "ad_id", adID)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message": "ad approved successfully",
+			"ad_id":   adID,
+			"status":  "approved",
+		})
+	}
+}
+
+// RejectAdHandler - отклонить объявление
+func RejectAdHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		adIDStr := chi.URLParam(r, "adID")
+		adID, err := strconv.ParseUint(adIDStr, 10, 32)
+		if err != nil {
+			http.Error(w, `{"error": "invalid ad id"}`, http.StatusBadRequest)
+			return
+		}
+
+		result := db.Model(&models.Ad{}).Where("id = ?", adID).Update("status", "rejected")
+		if result.Error != nil {
+			logger.Error("failed to reject ad", "error", result.Error)
+			http.Error(w, `{"error": "failed to reject ad"}`, http.StatusInternalServerError)
+			return
+		}
+		if result.RowsAffected == 0 {
+			http.Error(w, `{"error": "ad not found"}`, http.StatusNotFound)
+			return
+		}
+
+		logger.Info("ad rejected by admin", "ad_id", adID)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message": "ad rejected successfully",
+			"ad_id":   adID,
+			"status":  "rejected",
+		})
+	}
+}
+
+// ApproveWorkerHandler - одобрить профиль мастера
+func ApproveWorkerHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		workerIDStr := chi.URLParam(r, "workerID")
+		workerID, err := strconv.ParseUint(workerIDStr, 10, 32)
+		if err != nil {
+			http.Error(w, `{"error": "invalid worker id"}`, http.StatusBadRequest)
+			return
+		}
+
+		result := db.Model(&models.WorkerProfile{}).Where("user_id = ?", workerID).Update("status", "approved")
+		if result.Error != nil {
+			logger.Error("failed to approve worker", "error", result.Error)
+			http.Error(w, `{"error": "failed to approve worker profile"}`, http.StatusInternalServerError)
+			return
+		}
+		if result.RowsAffected == 0 {
+			http.Error(w, `{"error": "worker profile not found"}`, http.StatusNotFound)
+			return
+		}
+
+		logger.Info("worker profile approved by admin", "worker_id", workerID)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message":   "worker profile approved successfully",
+			"worker_id": workerID,
+			"status":    "approved",
+		})
+	}
+}
+
+// RejectWorkerHandler - отклонить профиль мастера
+func RejectWorkerHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		workerIDStr := chi.URLParam(r, "workerID")
+		workerID, err := strconv.ParseUint(workerIDStr, 10, 32)
+		if err != nil {
+			http.Error(w, `{"error": "invalid worker id"}`, http.StatusBadRequest)
+			return
+		}
+
+		result := db.Model(&models.WorkerProfile{}).Where("user_id = ?", workerID).Update("status", "rejected")
+		if result.Error != nil {
+			logger.Error("failed to reject worker", "error", result.Error)
+			http.Error(w, `{"error": "failed to reject worker profile"}`, http.StatusInternalServerError)
+			return
+		}
+		if result.RowsAffected == 0 {
+			http.Error(w, `{"error": "worker profile not found"}`, http.StatusNotFound)
+			return
+		}
+
+		logger.Info("worker profile rejected by admin", "worker_id", workerID)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"message":   "worker profile rejected successfully",
+			"worker_id": workerID,
+			"status":    "rejected",
+		})
+	}
+}
+
+// GetPendingWorkersHandler - список профилей мастеров на модерации
+func GetPendingWorkersHandler(db *gorm.DB, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		status := r.URL.Query().Get("status")
+		if status == "" {
+			status = "pending"
+		}
+
+		limit := 10
+		offset := 0
+		if l := r.URL.Query().Get("limit"); l != "" {
+			limit, _ = strconv.Atoi(l)
+		}
+		if o := r.URL.Query().Get("offset"); o != "" {
+			offset, _ = strconv.Atoi(o)
+		}
+
+		type WorkerInfo struct {
+			UserID      uint    `json:"user_id"`
+			Name        string  `json:"name"`
+			Email       string  `json:"email"`
+			Phone       string  `json:"phone"`
+			ExpYears    *int    `json:"exp_years"`
+			Description *string `json:"description"`
+			Location    string  `json:"location"`
+			Schedule    string  `json:"schedule"`
+			Status      string  `json:"status"`
+		}
+
+		var workers []WorkerInfo
+		err := db.Table("users u").
+			Select("u.id as user_id, u.name, u.email, u.phone, wp.exp_years, wp.description, wp.location, wp.schedule, wp.status").
+			Joins("JOIN worker_profiles wp ON u.id = wp.user_id").
+			Where("wp.have_worker_profile = ? AND wp.status = ?", true, status).
+			Order("wp.updated_at DESC").
+			Limit(limit).
+			Offset(offset).
+			Scan(&workers).Error
+		if err != nil {
+			logger.Error("failed to get workers for moderation", "error", err)
+			http.Error(w, `{"error": "internal server error"}`, http.StatusInternalServerError)
+			return
+		}
+
+		var total int64
+		db.Model(&models.WorkerProfile{}).Where("have_worker_profile = ? AND status = ?", true, status).Count(&total)
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"workers": workers,
+			"total":   total,
+			"limit":   limit,
+			"offset":  offset,
+			"status":  status,
 		})
 	}
 }

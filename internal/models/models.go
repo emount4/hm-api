@@ -54,14 +54,15 @@ type User struct {
 
 type WorkerProfile struct {
 	gorm.Model
-	UserID      uint    `gorm:"not null;uniqueIndex" json:"-"` // ✅ ПРАВИЛЬНО! 1:1 связь
+	UserID      uint    `gorm:"not null;uniqueIndex" json:"-"`
 	ExpYears    *int    `json:"exp_years"`                     // NULLABLE
 	Description *string `gorm:"size:255" json:"description"`
 	IsBusy      bool    `gorm:"default:false;not null" json:"is_busy"`
 	Location    string  `gorm:"size:255" json:"location"` // место жительства / работы
 	Schedule    string  `gorm:"size:255" json:"schedule"` // расписание (часы / дни)
 	// Пометка, что профиль реально заполнен и пользователь считается "рабочим"
-	HaveWorkerProfile bool `gorm:"default:false;not null" json:"have_worker_profile"`
+	HaveWorkerProfile bool   `gorm:"default:false;not null" json:"have_worker_profile"`
+	Status            string `gorm:"size:20;not null;default:'pending';index" json:"status"` // pending, approved, rejected
 
 	// Связи (UserID вместо ID!)
 	User            User             `gorm:"foreignKey:UserID;references:ID" json:"user,omitempty"`
@@ -79,7 +80,7 @@ type Ad struct {
 	Location    string    `gorm:"size:255" json:"location"` // локация объявления
 	Schedule    string    `gorm:"size:255" json:"schedule"` // когда актуально объявление
 	CreatedAt   time.Time `gorm:"not null;index" json:"created_at"`
-	// IsApproved  bool      `gorm:"default:false;index" json:"is_approved"`
+	Status      string    `gorm:"size:20;not null;default:'pending';index" json:"status"` // pending, approved, rejected
 
 	// Связи
 	Category  Category  `gorm:"foreignKey:CategoryID" json:"category,omitempty"`

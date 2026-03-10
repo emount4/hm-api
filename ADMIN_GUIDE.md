@@ -107,14 +107,17 @@ Content-Type: application/json
 
 ### Модерация объявлений
 
+> Статусы: `pending` (na рассмотрении) → `approved` (одобрено) / `rejected` (отклонено)
+
 #### Получить все объявления
 ```http
-GET /admin/ads?limit=10&offset=0&category=Сантехника&user_id=5
+GET /admin/ads?limit=10&offset=0&status=pending&category=Сантехника&user_id=5
 ```
 
 **Query параметры:**
 - `limit` - количество записей
 - `offset` - смещение
+- `status` - фильтр по статусу (`pending`, `approved`, `rejected`)
 - `category` - фильтр по названию категории
 - `user_id` - фильтр по автору объявления
 
@@ -133,12 +136,41 @@ GET /admin/ads?limit=10&offset=0&category=Сантехника&user_id=5
       "user_id": 5,
       "user_name": "Петр Петров",
       "user_email": "petr@example.com",
-      "responses_count": 3
+      "responses_count": 3,
+      "status": "pending"
     }
   ],
   "total": 50,
   "limit": 10,
   "offset": 0
+}
+```
+
+#### Одобрить объявление
+```http
+PATCH /admin/ads/15/approve
+```
+
+**Ответ:**
+```json
+{
+  "message": "ad approved successfully",
+  "ad_id": 15,
+  "status": "approved"
+}
+```
+
+#### Отклонить объявление
+```http
+PATCH /admin/ads/15/reject
+```
+
+**Ответ:**
+```json
+{
+  "message": "ad rejected successfully",
+  "ad_id": 15,
+  "status": "rejected"
 }
 ```
 
@@ -151,6 +183,70 @@ DELETE /admin/ads/15
 ```json
 {
   "message": "ad deleted successfully"
+}
+```
+
+---
+
+### Модерация профилей мастеров
+
+#### Получить профили на модерации
+```http
+GET /admin/workers?status=pending&limit=10&offset=0
+```
+
+**Query параметры:**
+- `status` - фильтр по статусу (`pending`, `approved`, `rejected`); по умолчанию `pending`
+- `limit` / `offset` - пагинация
+
+**Ответ:**
+```json
+{
+  "workers": [
+    {
+      "user_id": 12,
+      "name": "Сергей Мастеров",
+      "email": "master@example.com",
+      "phone": "+79001234567",
+      "exp_years": 5,
+      "description": "Профессиональный сантехник",
+      "location": "Москва",
+      "schedule": "Пн-Пт 9:00-18:00",
+      "status": "pending"
+    }
+  ],
+  "total": 8,
+  "limit": 10,
+  "offset": 0,
+  "status": "pending"
+}
+```
+
+#### Одобрить профиль мастера
+```http
+PATCH /admin/workers/12/approve
+```
+
+**Ответ:**
+```json
+{
+  "message": "worker profile approved successfully",
+  "worker_id": 12,
+  "status": "approved"
+}
+```
+
+#### Отклонить профиль мастера
+```http
+PATCH /admin/workers/12/reject
+```
+
+**Ответ:**
+```json
+{
+  "message": "worker profile rejected successfully",
+  "worker_id": 12,
+  "status": "rejected"
 }
 ```
 
@@ -418,13 +514,18 @@ DELETE /admin/price-units/5
 - Удаление пользователей
 - Удаление объявлений
 - Изменение ролей
-- Управление черным списком
+- Одобрение / отклонение объявлений и профилей мастеров
+- Управление чёрным списком
 
 Пример лога:
 ```
 INFO admin access granted user_id=1 email=admin@example.com
 INFO user deleted by admin user_id=123
 INFO user role updated by admin user_id=45 new_role=admin
+INFO ad approved by admin ad_id=15
+INFO ad rejected by admin ad_id=22
+INFO worker profile approved by admin worker_id=12
+INFO worker profile rejected by admin worker_id=7
 ```
 
 ---
@@ -459,6 +560,24 @@ curl -X PATCH http://localhost:8080/admin/users/5/role \
   -d '{
     "role_name": "admin"
   }'
+```
+
+### Одобрение объявления
+```bash
+curl -X PATCH http://localhost:8080/admin/ads/15/approve \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Отклонение объявления
+```bash
+curl -X PATCH http://localhost:8080/admin/ads/22/reject \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Одобрение профиля мастера
+```bash
+curl -X PATCH http://localhost:8080/admin/workers/12/approve \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ### Удаление объявления
@@ -568,8 +687,15 @@ WHERE email = 'admin@example.com';
 │   └── PATCH /{id}/role - Изменить роль
 │
 ├── /ads            - Модерация объявлений
-│   ├── GET /       - Все объявления
-│   └── DELETE /{id} - Удалить объявление
+│   ├── GET /           - Все объявления (?status=pending|approved|rejected)
+│   ├── DELETE /{id}    - Удалить объявление
+│   ├── PATCH /{id}/approve - Одобрить объявление
+│   └── PATCH /{id}/reject  - Отклонить объявление
+│
+├── /workers        - Модерация профилей мастеров
+│   ├── GET /           - Профили на модерации (?status=pending|approved|rejected)
+│   ├── PATCH /{id}/approve - Одобрить профиль
+│   └── PATCH /{id}/reject  - Отклонить профиль
 │
 ├── /responses      - Модерация откликов
 │   ├── GET /       - Все отклики

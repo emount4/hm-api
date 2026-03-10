@@ -38,6 +38,7 @@ type WorkerResponse struct {
 	Schedule    string  `json:"schedule"`
 	// Только пользователи с have_worker_profile = true считаются "рабочими" во внешнем API
 	HaveWorkerProfile bool           `json:"have_worker_profile"`
+	Status            string         `json:"status"` // pending, approved, rejected
 	Categories        []CategoryJSON `json:"categories,omitempty" gorm:"-"`
 }
 
@@ -46,14 +47,14 @@ func ListApprovedWorkers(db *gorm.DB, limit, offset int) ([]WorkerResponse, int6
 
 	db.Model(&models.User{}).
 		Joins("JOIN worker_profiles ON worker_profiles.user_id = users.id").
-		Where("worker_profiles.have_worker_profile = ?", true).
+		Where("worker_profiles.have_worker_profile = ? AND worker_profiles.status = ?", true, "approved").
 		Count(&total)
 
 	var workers []WorkerResponse
 	err := db.Table("users u").
-		Select("u.id, u.id as worker_id, u.name, u.email, u.phone, wp.exp_years, wp.description, wp.is_busy, wp.location, wp.schedule, wp.have_worker_profile").
+		Select("u.id, u.id as worker_id, u.name, u.email, u.phone, wp.exp_years, wp.description, wp.is_busy, wp.location, wp.schedule, wp.have_worker_profile, wp.status").
 		Joins("JOIN worker_profiles wp ON u.id = wp.user_id").
-		Where("wp.have_worker_profile = ?", true).
+		Where("wp.have_worker_profile = ? AND wp.status = ?", true, "approved").
 		Order("u.id ASC").
 		Offset(offset).
 		Limit(limit).
@@ -87,9 +88,9 @@ func WorkerByID(db *gorm.DB, id uint) (*WorkerResponse, error) {
 	var worker WorkerResponse
 
 	err := db.Table("users u").
-		Select("u.id, u.id as worker_id, u.name, u.email, u.phone, wp.exp_years, wp.description, wp.is_busy, wp.location, wp.schedule, wp.have_worker_profile").
+		Select("u.id, u.id as worker_id, u.name, u.email, u.phone, wp.exp_years, wp.description, wp.is_busy, wp.location, wp.schedule, wp.have_worker_profile, wp.status").
 		Joins("JOIN worker_profiles wp ON u.id = wp.user_id").
-		Where("u.id = ? AND wp.have_worker_profile = ?", id, true).
+		Where("u.id = ? AND wp.have_worker_profile = ? AND wp.status = ?", id, true, "approved").
 		Scan(&worker).Error
 
 	if err != nil || worker.ID == 0 {
@@ -118,7 +119,7 @@ func WorkerByUserID(db *gorm.DB, id uint) (*WorkerResponse, error) {
 	var worker WorkerResponse
 
 	err := db.Table("users u").
-		Select("u.id, u.id as worker_id, u.name, u.email, u.phone, wp.exp_years, wp.description, wp.is_busy, wp.location, wp.schedule, wp.have_worker_profile").
+		Select("u.id, u.id as worker_id, u.name, u.email, u.phone, wp.exp_years, wp.description, wp.is_busy, wp.location, wp.schedule, wp.have_worker_profile, wp.status").
 		Joins("JOIN worker_profiles wp ON u.id = wp.user_id").
 		Where("u.id = ?", id).
 		Scan(&worker).Error
